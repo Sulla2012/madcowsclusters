@@ -83,9 +83,14 @@ for i in range(len(ra)):
 
 print("Starting Planck Maps")
 
-imap = enmap.read_map('HFI_SkyMap_143_2048_R2.02_full.fits')
+planck_file_name = '/maps/HFI_SkyMap_143_2048_R2.02_full.fits'
 
-plots = enplot.plot(imap,range=300,mask=0)
+#shape,wcs = enmap.geometry(shape=(1024,1024),res=np.deg2rad(0.5/60.),pos=(0,0))
+shape,wcs = enmap.fullsky_geometry(res=5.0 * utils.arcmin,proj='car')
+
+pmap = reproject.enmap_from_healpix(planck_file_name, shape, wcs, ncomp=1, unit=1, lmax=6000,rot="gal,equ")
+
+plots = enplot.plot(pmap,range=300,mask=0)
 
 enplot.write("planck_map",plots)
 
@@ -93,7 +98,7 @@ t = QTable.read('madcows/AdvACT_S18Clusters_v1.0-beta.fits')
 ra_temp = t['RADeg']
 dec_temp = t['decDeg']
 ra, dec = np.array(ra_temp), np.array(dec_temp)
-s18stack = stack(ra, dec, imap)
+s18stack = stack(ra, dec, pmap)
 plots = enplot.plot(enmap.upgrade(s18stack,5),grid=False, colorbar=True,color='gray')
 enplot.write("planck_s18stack",plots)
 
@@ -118,7 +123,7 @@ for i in range(len(ra)):
 
 ra, dec = t_mc['RADeg'], t_mc['decDeg']
 
-mcstack = stack(ra, dec, imap)
+mcstack = stack(ra, dec, pmap)
 plots = enplot.plot(enmap.upgrade(mcstack,5),grid=False, colorbar=True,color='gray')
 enplot.write("planck_mcstack",plots)
 

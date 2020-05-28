@@ -12,7 +12,7 @@ def stack(ras, decs, map1, mask1, width = 20.):
 	divisor = 0
 	for i in range(len(ras)):
 		tempdec, tempra = np.deg2rad([decs[i], ras[i]])
-		tempwid = np.deg2rad(width)
+		tempwid = np.deg2rad(width/60.)
 		box = [[tempdec-tempwid,tempra-tempwid],[tempdec+tempwid,tempra+tempwid]]
 		maskstamp = mask1.submap(box)
 		#Check if the stamp is entirely within borders, i.e. if the mask stamp is entirely ones
@@ -22,6 +22,7 @@ def stack(ras, decs, map1, mask1, width = 20.):
 			stack += stamp[0]
 			divisor += 1
 	stack /= divisor
+	print(divisor)
 	return stack
 
 mappath = '/scratch/r/rbond/msyriac/data/depot/tilec/v1.2.0_20200324/map_v1.2.0_joint_boss/'

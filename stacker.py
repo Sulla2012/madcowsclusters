@@ -7,7 +7,7 @@ import urllib.request
 from astropy.table import QTable
 import astropy.units as u
 
-def stack(ras, decs, map1, mask1, width = 20.):
+def stack(ras, decs, map1, mask1, map2 = None, mask2 = None, width = 20.):
 	stack = 0
 	divisor = 0
 	for i in range(len(ras)):
@@ -21,6 +21,15 @@ def stack(ras, decs, map1, mask1, width = 20.):
 			if stamp is None: continue
 			stack += stamp[0]
 			divisor += 1
+		if map2 is None: continue
+		#If a second map is to be checked, repeat above with second map
+		maskstamp = mask2.submap(box)
+		if np.any(maskstamp[0]):
+                        stamp = reproject.postage_stamp(map2, ras[i], decs[i], width, 0.5)
+                        if stamp is None: continue
+                        stack += stamp[0]
+                        divisor += 1
+
 	stack /= divisor
 	print(divisor)
 	return stack
@@ -35,6 +44,7 @@ boss_map = enmap.read_map(mappath + 'tilec_single_tile_boss_comptony_map_v1.2.0_
 ra_temp = t['RADeg']
 dec_temp = t['decDeg']
 ra, dec = np.array(ra_temp), np.array(dec_temp)
+
 boss_stack = stack(ra, dec, boss_map, boss_mask)
 plt.imshow(boss_stack)
 plt.colorbar()
@@ -45,4 +55,21 @@ plt.close()
 #plots = enplot.plot(enmap.upgrade(boss_stack,5),grid=False, colorbar=True,color='gray')
 #enplot.write("boss_stack_act_y",plots)
 
+d56_path = '/scratch/r/rbond/msyriac/data/depot/tilec/v1.2.0_20200324/map_v1.2.0_joint_deep56/'
+
+d56_mask = enmap.read_map(d56_path + "tilec_mask.fits")
+d56_map = enmap.read_map(d56_path + 'tilec_single_tile_deep56_comptony_map_v1.2.0_joint.fits')
+
+
+d56_stack = stack(ra, dec, d56_map, d56_mask)
+plt.imshow(d56_stack)
+plt.colorbar()
+plt.savefig("d56_stack_act_y.png")
+plt.close()
+
+comb_stack = stack(ra, dec, boss_map, boss_mask, d56_map, d56_mask)
+plt.imshow(boss_stack)
+plt.colorbar()
+plt.savefig("comb_stack_act_y.png")
+plt.close()
 

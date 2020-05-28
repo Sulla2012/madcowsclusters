@@ -68,7 +68,7 @@ plt.savefig("d56_stack_act_y.png")
 plt.close()
 
 comb_stack = stack(ra, dec, boss_map, boss_mask, d56_map, d56_mask)
-plt.imshow(boss_stack)
+plt.imshow(comb_stack)
 plt.colorbar()
 plt.savefig("comb_stack_act_y.png")
 plt.close()

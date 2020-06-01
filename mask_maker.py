@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 from astropy.table import QTable
 import os,sys
 import urllib.request
+from astropy.io import fits
 
 def mask(imap, ra, dec, width = 0.5, apod_pix = 4):
 	ra, dec = np.deg2rad([ra,dec])
@@ -11,6 +12,7 @@ def mask(imap, ra, dec, width = 0.5, apod_pix = 4):
 	box = [[dec-width/2.,ra-width/2.],[dec+width/2.,ra+width/2.]]
 	stamp = imap.submap(box)
 	taper = enmap.apod(stamp*0+1,apod_pix)
+	enmap.write_map('test_taper.fits', taper)
 	return taper
 
 mappath = '/scratch/r/rbond/msyriac/data/depot/tilec/v1.2.0_20200324/map_v1.2.0_joint_boss/'

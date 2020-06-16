@@ -79,6 +79,8 @@ if 0:
 	plt.close()
 """
 
+"""
+#Frequency stamping for Luca
 mappath = '/home/r/rbond/sigurdkn/project/actpol/map_coadd/20200228/release/'
 	
 freqs = ['f090', 'f150', 'f220']
@@ -98,3 +100,5 @@ for freq in freqs:
 	enplot.write(name,plots)
 
 	enmap.write_map('./padded_v1/{}.fits'.format(name), stamp)
+
+"""

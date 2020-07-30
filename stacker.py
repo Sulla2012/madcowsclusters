@@ -34,6 +34,33 @@ def stack(ras, decs, map1, mask1, map2 = None, mask2 = None, width = 20.):
 	stack /= divisor
 	print(divisor)
 	return stack
+def freqStamp(ra, dec, fmap, name, width = 0.5, write = True):
+    
+    stamp = reproject.postage_stamp(fmap, ra, dec, width*60, 0.5)
+    if write:
+        tempdec, tempra = np.deg2rad([dec, ra])
+        tempwid = np.deg2rad(width)
+        box = [[tempdec-tempwid,tempra-tempwid],[tempdec+tempwid,tempra+tempwid]]
+ 
+        stampgeo = fmap.submap(box)
+        print(stampgeo.wcs)
+        print(stamp.wcs)
+        stamp.wcs = stampgeo.wcs
+        print(stamp.wcs)
+        #plt.imshow(stamp[0])
+        #plt.show()
+        #Return map
+        enmap.write_map('./for_tony/{}.fits'.format(name), stamp)
+    return stamp
+
+path = '/home/r/rbond/sigurdkn/project/actpol/map_coadd/20200228/release2/'
+map220 = enmap.read_map(path + 'act_planck_s08_s18_cmb_f220_night_map.fits')
+map150 = enmap.read_map(path + 'act_planck_s08_s18_cmb_f150_night_map.fits')
+map090 = enmap.read_map(path + 'act_planck_s08_s18_cmb_f090_night_map.fits')
+
+ignore = freqStamp(303.1103611788376,-56.83093699573238, map220, '220_ACT-CL_J2012.4-5649')
+ignore = freqStamp(303.1103611788376,-56.83093699573238, map150, '150_ACT-CL_J2012.4-5649')
+ignore = freqStamp(303.1103611788376,-56.83093699573238, map090, '090_ACT-CL_J2012.4-5649')
 
 #Stack on S18 cluster catalog
 
@@ -102,3 +129,7 @@ for freq in freqs:
 	enmap.write_map('./padded_v1/{}.fits'.format(name), stamp)
 
 """
+
+test = enmap.read_map('/home/r/rbond/sigurdkn/project/actpol/map_coadd/20200228/release2/act_planck_s08_s18_cmb_f220_night_map.fits')
+
+

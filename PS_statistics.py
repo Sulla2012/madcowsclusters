@@ -133,8 +133,8 @@ boot = True
 for i, (freq, cur_dict) in enumerate(mdcw_freq_dict.items()):    
     
     cur_dict['central_t'] = []
-    cur_dict['highest_t'] = []
     cur_dict['map_var'] = []
+    cur_dict['boots'] = []
     
     cur_map = enmap.read_map('/gpfs/fs0/project/r/rbond/jorlo/freq_maps/stitched_Beam{}_filteredMap.fits'.format(str(freq)))
     
@@ -147,8 +147,8 @@ for i, (freq, cur_dict) in enumerate(mdcw_freq_dict.items()):
         if boot:
             cur_boot = []
             for k in range(50):
-                print(j, end = '\r')
-                print(k,end='\r')
+                print(freq, j, k, end = '\r')
+                
                 flags = np.random.randint(len(ra_temp), size = len(ra_temp))
     
                 ra_temp2, dec_temp2 = ra_temp[flags], dec_temp[flags]
@@ -157,7 +157,7 @@ for i, (freq, cur_dict) in enumerate(mdcw_freq_dict.items()):
                 divisor = 0
 
                 for l in range(len(ra_temp)):
-                    stamp = reproject.postage_stamp(cur_map, ra_temp[l], dec_temp[l], 20., 0.5)
+                    stamp = reproject.postage_stamp(cur_map, ra_temp2[l], dec_temp2[l], 20., 0.5)
                     if stamp is None: continue
                     if 0 in stamp[0][19:21, 19:21]: continue
         
@@ -166,6 +166,7 @@ for i, (freq, cur_dict) in enumerate(mdcw_freq_dict.items()):
 
                 stack /= divisor
                 cur_boot.append(np.mean(stack[19:21, 19:21]))
+            cur_dict['boots'].append(cur_boot)
             cur_dict['central_t'].append(np.mean(cur_boot))
             cur_dict['map_var'].append(np.std(cur_boot))	
 
@@ -198,14 +199,17 @@ for i, (freq, cur_dict) in enumerate(mdcw_freq_dict.items()):
             cur_dict['central_t'].append(np.mean(stack[19:21, 19:21]))
 
             cur_dict['map_var'].append(np.std(stack[0:15, 0:15]))
+print(mdcw_freq_dict)
 
-	
+pk.dump(mdcw_freq_dict, open('ps_dict.p', 'wb'))	
 
 xrange = range(5,75, 10)
 
+pk.dump(cur_dict, open('ps_dict.p', 'wb'))
+
 for i, (freq, cur_dict) in enumerate(mdcw_freq_dict.items()):
     print(cur_dict['central_t'])
-    plt.errorbar(xrange, np.mean(cur_dict['central_t'], axis = 1), yerr = cur_dict['map_var'], label = freq,fmt='--o', linestyle = 'none')
+    plt.errorbar(xrange, cur_dict['central_t'], yerr = cur_dict['map_var'], label = freq,fmt='--o', linestyle = 'none')
 
 plt.legend(loc = 3)
 plt.title(r'090/150/220GHz MaDCoWS Stacks')

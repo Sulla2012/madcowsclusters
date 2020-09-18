@@ -222,3 +222,119 @@ plt.savefig('./plots/PS_freq/mdcw_rich_central_temp.pdf')
 plt.savefig('./plots/PS_freq/mdcw_rich_central_temp.png', dpi = 300)
 plt.show()
 plt.close()
+
+##########################################################################################################################################
+#                                                   ACT 220 Stacks                                                                      #
+#########################################################################################################################################
+
+act_catalog = fits.open('/gpfs/fs0/project/r/rbond/jorlo/cluster_catalogs/DR5_cluster-catalog_v1.0b2.fits')
+
+ra = act_catalog[1].data['RADeg']
+names = act_catalog[1].data['name']
+dec = act_catalog[1].data['decDeg']
+ra, dec = np.array(ra), np.array(dec)
+mass = act_catalog[1].data['M500']
+
+nbins = 6
+perc = np.percentile(mass, np.linspace(0,100, nbins+1)) 
+
+perc[0] = perc[0]*0.99
+
+act_freq_dict = {'090':{}, '150':{}, '220':{}}
+
+boot = True
+
+for i, (freq, cur_dict) in enumerate(act_freq_dict.items()):
+
+    cur_dict['central_t'] = []
+    cur_dict['map_var'] = []
+    cur_dict['boots'] = []
+
+    cur_map = enmap.read_map('/gpfs/fs0/project/r/rbond/jorlo/freq_maps/stitched_Beam{}_filteredMap.fits'.format(str(freq)))
+
+    for j in range(nbins):
+        flag = np.where((mass>perc[j]) & (mass<=perc[j+1]))[0]
+
+
+        if len(flag) == 0: continue
+
+        ra_temp, dec_temp = ra[flag], dec[flag]
+        if boot:
+            cur_boot = []
+            for k in range(50):
+                print(freq, j, k, end = '\r')
+
+                flags = np.random.randint(len(ra_temp), size = len(ra_temp))
+
+                ra_temp2, dec_temp2 = ra_temp[flags], dec_temp[flags]
+
+                stack = 0
+                divisor = 0
+
+                for l in range(len(ra_temp)):
+                    stamp = reproject.postage_stamp(cur_map, ra_temp2[l], dec_temp2[l], 20., 0.5)
+                    if stamp is None: continue
+                    if 0 in stamp[0][19:21, 19:21]: continue
+
+                    stack += stamp[0]
+                    divisor += 1
+
+                stack /= divisor
+                cur_boot.append(np.mean(stack[19:21, 19:21]))
+            cur_dict['boots'].append(cur_boot)
+            cur_dict['central_t'].append(np.mean(cur_boot))
+            cur_dict['map_var'].append(np.std(cur_boot))
+
+        else:
+            stack = 0
+            divisor = 0
+
+            for k in range(len(ra_temp)):
+                stamp = reproject.postage_stamp(cur_map, ra_temp[k], dec_temp[k], 20., 0.5)
+                if stamp is None: continue
+                if 0 in stamp[0][19:21, 19:21]: continue
+                stack += stamp[0]
+                divisor += 1
+
+            stack /= divisor
+
+            plot = plt.imshow(stack, extent = [-20, 20, -20, 20])
+
+            plt.scatter(0,0, marker = '+', color = 'r', alpha = 0.5)
+            plt.colorbar(plot, format='%.0e')
+            plt.title('{} Filtered Maps on all ACT Positions \n {:0.3e} < Mass (M500) <= {:0.3e}, Num = {}'.format(freq,perc[j], perc[j+1],len(flag)))
+
+
+            plt.xlabel('Arcmin')
+            plt.ylabel('Arcmin')
+            plt.savefig('./plots/PS_freq/act_{}_{}_{}.pdf'.format(j, j+10, freq))
+            plt.savefig('./plots/PS_freq/act_{}_{}_{}.png'.format(j, j+10,freq), dpi = 300)
+            plt.show()
+            plt.close()
+
+            cur_dict['highest_t'].append(np.amin(stack[19:21,19:21]))
+            cur_dict['central_t'].append(np.mean(stack[19:21, 19:21]))
+
+            cur_dict['map_var'].append(np.std(stack[0:15, 0:15]))
+
+
+pk.dump(act_freq_dict, open('act_ps_dict.p', 'wb'))
+
+xrange = range(5,75, 10)
+
+for i, (freq, cur_dict) in enumerate(act_freq_dict.items()):
+    print(cur_dict['central_t'])
+    plt.errorbar(xrange, cur_dict['central_t'], yerr = cur_dict['map_var'], label = freq,fmt='--o', linestyle = 'none')
+
+plt.legend(loc = 3)
+plt.title(r'090/150/220GHz ACT Stacks')
+plt.xlabel('Mass Bin (M500, midpoint)')
+plt.ylabel(r'Central 2x2 Mean Temperature ($\mu$K)')
+plt.ylim(-140,20)
+plt.axhline(y=0, color='k')
+
+plt.savefig('./plots/PS_freq/act_rich_central_temp.pdf')
+plt.savefig('./plots/PS_freq/act_rich_central_temp.png', dpi = 300)
+plt.show()
+plt.close()
+

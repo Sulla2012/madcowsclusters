@@ -96,7 +96,8 @@ for j in range(200):
     central_t_boot.append(np.mean(stack[19:21, 19:21]))
     
 print('220boot = {} +/- {}'.format(np.mean(central_t_boot), np.sqrt(np.var(central_t_boot))))
-"""
+
+
 
 ###############################################################################################################
 #                         220 Signal stacked on MDCWs positions binned in richness                           #
@@ -199,13 +200,11 @@ for i, (freq, cur_dict) in enumerate(mdcw_freq_dict.items()):
             cur_dict['central_t'].append(np.mean(stack[19:21, 19:21]))
 
             cur_dict['map_var'].append(np.std(stack[0:15, 0:15]))
-print(mdcw_freq_dict)
 
 pk.dump(mdcw_freq_dict, open('ps_dict.p', 'wb'))	
 
 xrange = range(5,75, 10)
 
-pk.dump(cur_dict, open('ps_dict.p', 'wb'))
 
 for i, (freq, cur_dict) in enumerate(mdcw_freq_dict.items()):
     print(cur_dict['central_t'])
@@ -222,9 +221,9 @@ plt.savefig('./plots/PS_freq/mdcw_rich_central_temp.pdf')
 plt.savefig('./plots/PS_freq/mdcw_rich_central_temp.png', dpi = 300)
 plt.show()
 plt.close()
-
+"""
 ##########################################################################################################################################
-#                                                   ACT 220 Stacks                                                                      #
+#                                                   ACT 220 Stacks, binned in richness                                                  #
 #########################################################################################################################################
 
 act_catalog = fits.open('/gpfs/fs0/project/r/rbond/jorlo/cluster_catalogs/DR5_cluster-catalog_v1.0b2.fits')
@@ -235,8 +234,13 @@ dec = act_catalog[1].data['decDeg']
 ra, dec = np.array(ra), np.array(dec)
 mass = act_catalog[1].data['M500']
 
-nbins = 6
-perc = np.percentile(mass, np.linspace(0,100, nbins+1)) 
+flag = np.where((rich != 999999))[0]
+flag2 = np.where((rich == 999999))
+ra2, dec2 = ra[flag2], dec[flag2]
+ra, dec, rich = ra[flag], dec[flag], rich[flag]
+
+nbins = 7
+perc = np.percentile(rich, np.linspace(0,100, nbins+1))  
 
 perc[0] = perc[0]*0.99
 
@@ -261,7 +265,7 @@ for i, (freq, cur_dict) in enumerate(act_freq_dict.items()):
         ra_temp, dec_temp = ra[flag], dec[flag]
         if boot:
             cur_boot = []
-            for k in range(50):
+            for k in range(40):
                 print(freq, j, k, end = '\r')
 
                 flags = np.random.randint(len(ra_temp), size = len(ra_temp))
@@ -338,3 +342,65 @@ plt.savefig('./plots/PS_freq/act_rich_central_temp.png', dpi = 300)
 plt.show()
 plt.close()
 
+"""
+##########################################################################################################################################
+#                                                        MDCW 220 Stack                                                                 #
+#########################################################################################################################################
+
+cur_map = enmap.read_map('/gpfs/fs0/project/r/rbond/jorlo/freq_maps/stitched_Beam220_filteredMap.fits')
+try:
+    central_t_boot = pk.load(open('central_t_mdcw.pk', 'rb'))
+except:
+    central_t_boot = []
+
+mdcw_catalog = fits.open('/home/s/sievers/sdicker/ACTnCOWs/MADCOWSUnion.fits')
+
+hdu = fits.open('/gpfs/fs0/project/r/rbond/jorlo/freq_maps/stitched_Beam220_filteredMap.fits')
+
+ra = mdcw_catalog[1].data['RADeg']
+names = mdcw_catalog[1].data['name']
+dec = mdcw_catalog[1].data['decDeg']
+ra, dec = np.array(ra), np.array(dec)
+rich = mdcw_catalog[1].data['Rich']
+z = mdcw_catalog[1].data['Photz']
+
+names_cut = {'MOO J0015+0801','MOO J0917+1456','MOO J0936+0336','MOO J1116+1653','MOO J1350+0036','MOO J1355-0114','MOO J2349+0541'}
+
+names_flag = [True]*len(names)
+
+for i, name in enumerate(names):
+    if name in names_cut:
+        names_flag[i] = False
+
+        
+ra = ra[names_flag]
+dec = dec[names_flag]
+rich = rich[names_flag]
+names = names[names_flag]
+z = z[names_flag]
+
+for j in range(100):
+    print(j,end='\r')
+    flags = np.random.randint(len(ra), size = len(ra))
+    
+    ra_temp, dec_temp = ra[flags], dec[flags]
+    
+    stack = 0
+    divisor = 0
+
+    for k in range(len(ra_temp)):
+        stamp = reproject.postage_stamp(cur_map, ra_temp[k], dec_temp[k], 20., 0.5)
+
+        if stamp is None: continue
+        if 0 in stamp[0][19:21, 19:21]: 
+                continue
+        
+        stack += stamp[0]
+        divisor += 1
+
+    stack /= divisor
+    central_t_boot.append(np.mean(stack[19:21, 19:21]))
+    
+#print('220jk = {} +/- {}'.format(np.mean(central_t_jk), np.var(central_t_jk)))
+print('220boot = {} +/- {}'.format(np.mean(central_t_boot), np.std(central_t_boot)))
+"""

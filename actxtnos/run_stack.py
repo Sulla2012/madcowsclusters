@@ -17,15 +17,26 @@ import astropy.units as u
 from astropy.io import fits
 from astropy.table import QTable
 import re
+from numba import jit
 
-def tnoStamp(ra, dec, kmap, frhs, width = 0.5):
-    #Takes an individual stamp of the kmap and frhs, and takes
-    #the ratio of the two to generate a stamp of the S/N per pixel
+
+@jit(nopython=True)
+def strange_check(strange_handles, target):
+    #A small helper function that finds the index of our target plannet. Due to a difference 
+    #in naming scheme we unfortunately can't just use np.where or something like that
+    for i in range(len(strange_handles)):
+        if strange_handles[i] == target:
+            break
+            
+    return i
+
+def tnoStamp(ra, dec, imap, width = 0.5):
+    #Takes an individual stamp of a map at the requested ra/dec. We form the ratio later  
     #frhs is a matched filter map and kmap is the inverse variance per pixel
     #both maps are at a ~3 day cadence
 
     #Inputs: ra, dec in degrees, j2000
-    #kmap, and frhs, described above. They must have the same wcs
+    #kmap or frhs, described above. They must have the same wcs
     #but if you're using this code and sigurd's maps they will
     #width, the desired width of the stamp in degrees
 
@@ -38,21 +49,18 @@ def tnoStamp(ra, dec, kmap, frhs, width = 0.5):
     coords = np.deg2rad(np.array((dec,ra)))
     ypix,xpix = enmap.sky2pix(kmap.shape,kmap.wcs,coords)
 
-    #Take the ratio of the maps        
-    tile = frhs/np.sqrt(kmap)
+    
+   
     
     #nans are formed when try to form S/n for pixels with no hits
     #I just set the S/N to 0 which I think is safe enough
-    for row in tile:
-        for i in range(len(row)):
-            if math.isnan(row[i]):
-                row[i] = 0
+    imap[~np.isfinite(imap)] = 0
 
     #Reproject will attempt to take a stamp at the desired location: if it can't
     #for whatever reason just return None. We don't want it throwing errors
     #while on the wall, however the skips should probably be checked after
     try:
-        stamp = reproject.postage_stamp(tile, ra, dec, width*60, 0.5)
+        stamp = reproject.postage_stamp(imap, ra, dec, width*60, 0.5)
     except:
         return None
     
@@ -70,29 +78,31 @@ class OrbitInterpolator:
         zero = np.min(table['datetime_jd'])
         ra_interp = interp1d(table['datetime_jd'] - zero, table['RA'])
         dec_interp = interp1d(table['datetime_jd'] - zero, table['DEC'])
+        delta_interp = interp1d(table['datetime_jd'] - zoer, table['delta'])
 
-        return zero, ra_interp, dec_interp 
+        return zero, ra_interp, dec_interp, delta_interp
 
     def _construct_dictionary(self):
         self.obj_dic = {}
     
         for i in self.targets:
-            z, r, d = self._interpolate_radec(i)
+            z, r, d, delta = self._interpolate_radec(i)
             self.obj_dic[i] = {}
             self.obj_dic[i]['zero'] = z
             self.obj_dic[i]['RA'] = r
             self.obj_dic[i]['DEC'] = d
+            self.obj_dic[i]['delta'] = delta
 
-
-    def get_radec(self, target, time):
+    def get_radec_dist(self, target, time):
         time = time + 2400000.5
         
         t_intep = time - self.obj_dic[target]['zero']
 
         ra = self.obj_dic[target]['RA'](t_intep)
         dec = self.obj_dic[target]['DEC'](t_intep)
+        dist = self.obj_dic[target]['delta'](t_interp)
 
-        return ra, dec
+        return ra, dec, dist
 
 def tnoStacker(oribits, obj):
     #Returns a stack over ~~~1~~~ objects orbit
@@ -104,9 +114,15 @@ def tnoStacker(oribits, obj):
     path = '/home/r/rbond/sigurdkn/scratch/actpol/planet9/20200801/maps/combined/'
     
     #Initialize stack/divisor
-    stack = 0
-    divisor = 0
+    kstack = 0
+    fstack = 0
+   
     
+    #Get the index of the tno we're working with
+    tno_hdu = fits.open('/project/r/rbond/jorlo/act_tnos/dist_h_y4.fits')
+    tno_data = tno_hdu[1].data
+
+
     #we're now going to check each directory in the path, each of which corresponds to one
     #~3 day coadd
     for dirname in os.listdir(path=path):
@@ -114,8 +130,10 @@ def tnoStacker(oribits, obj):
             #Find the (rough) mjd center of the map
             mjd_cent = hfile["mjd"][()]
 
-        #Get the ra/dec of the object 
-        ra, dec = orbits.get_radec(obj, mjd_cent)
+        #Get the ra/dec of the object, as well as delta, the geocentric distance to the object
+        #We use geocentric as we're looking at the IR emission, which scales as r**2 the distance
+        #from the obj to earth. If we were looking at reflected sunlight, we'd care about the heliocentric
+        ra, dec, delta = orbits.get_radec(obj, mjd_cent)
 
         #Get wcs info from the kmap for this 3day coadd: for sigurd's maps the kmap and 
         #frhs map wcs info will be the same
@@ -132,24 +150,30 @@ def tnoStacker(oribits, obj):
         kmap = enmap.read_map(path + dirname + '/kmap.fits')
         frhs = enmap.read_map(path + dirname + '/frhs.fits')
 
-        stamp = tnoStamp(ra, dec, kmap, frhs)
-
+        kstamp = tnoStamp(ra, dec, kmap)
+        fstamp = tnoStamp(ra, dec, frhs)
         #See tnoStamp but if stamp is None it means something went wrong.
-        #We also check to see if the maps are uniformly zero or if they contain
-        #any infinities
-        if stamp is None:
+        #We also check to see if the maps are uniformly zero 
+       
+        if (kstamp is None) or (fstamp is None):
             continue
-        if not np.any(stamp[0]):
+        if (not np.any(kstamp[0])) or (not np.any(fstamp[0])):
             continue
-        if np.any(np.isinf(stamp[0])):
-            continue
+        #if np.any(np.isinf(stamp[0])):
+        #    continue
+
+        #Scale by the flux compared to the reference flux at 1AU
+        flux_scale = (delta/1)**2 #Div one just a placeholder for ref scale
+        
+                    
 
         #Stack it up, divide and return
-        stack += stamp[0]
+        fstack += fstamp[0]/flux_scale
+        kstack += kstamp[0]/flux_scale
         #print(stack)
-        divisor += 1
+        
 
-    stack /= divisor
+    flux_stack = fstack/kstack
 
     return stack, divisor
 tic = time.perf_counter()

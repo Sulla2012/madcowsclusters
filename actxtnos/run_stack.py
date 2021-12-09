@@ -133,7 +133,7 @@ def tnoStacker(oribits, obj):
         #Get the ra/dec of the object, as well as delta, the geocentric distance to the object
         #We use geocentric as we're looking at the IR emission, which scales as r**2 the distance
         #from the obj to earth. If we were looking at reflected sunlight, we'd care about the heliocentric
-        ra, dec, delta = orbits.get_radec(obj, mjd_cent)
+        ra, dec, delta = orbits.get_radec_dist(obj, mjd_cent)
 
         #Get wcs info from the kmap for this 3day coadd: for sigurd's maps the kmap and 
         #frhs map wcs info will be the same

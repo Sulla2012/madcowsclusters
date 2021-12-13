@@ -47,7 +47,7 @@ def tnoStamp(ra, dec, imap, width = 0.5):
 
     #Find the pixel 
     coords = np.deg2rad(np.array((dec,ra)))
-    ypix,xpix = enmap.sky2pix(kmap.shape,kmap.wcs,coords)
+    ypix,xpix = enmap.sky2pix(imap.shape,imap.wcs,coords)
 
     
    
@@ -78,14 +78,15 @@ class OrbitInterpolator:
         zero = np.min(table['datetime_jd'])
         ra_interp = interp1d(table['datetime_jd'] - zero, table['RA'])
         dec_interp = interp1d(table['datetime_jd'] - zero, table['DEC'])
-        delta_interp = interp1d(table['datetime_jd'] - zoer, table['delta'])
+        delta_interp = interp1d(table['datetime_jd'] - zero, table['delta'])
 
         return zero, ra_interp, dec_interp, delta_interp
 
     def _construct_dictionary(self):
         self.obj_dic = {}
-    
-        for i in self.targets:
+            
+        for j,i in enumerate(self.targets):
+            print(j)
             z, r, d, delta = self._interpolate_radec(i)
             self.obj_dic[i] = {}
             self.obj_dic[i]['zero'] = z
@@ -100,7 +101,7 @@ class OrbitInterpolator:
 
         ra = self.obj_dic[target]['RA'](t_intep)
         dec = self.obj_dic[target]['DEC'](t_intep)
-        dist = self.obj_dic[target]['delta'](t_interp)
+        dist = self.obj_dic[target]['delta'](t_intep)
 
         return ra, dec, dist
 
@@ -111,6 +112,9 @@ def tnoStacker(oribits, obj):
     #obj, the name/id of the object of interest
     
     #Path to the maps. Probably shouldn't be hard coded
+   
+    print('stacking on ', str(obj))
+
     path = '/home/r/rbond/sigurdkn/scratch/actpol/planet9/20200801/maps/combined/'
     
     #Initialize stack/divisor
@@ -126,6 +130,7 @@ def tnoStacker(oribits, obj):
     #we're now going to check each directory in the path, each of which corresponds to one
     #~3 day coadd
     for dirname in os.listdir(path=path):
+        print('In dir ', dirname)
         with h5py.File(path + dirname +"/info.hdf", "r") as hfile:
             #Find the (rough) mjd center of the map
             mjd_cent = hfile["mjd"][()]
@@ -175,7 +180,7 @@ def tnoStacker(oribits, obj):
 
     flux_stack = fstack/kstack
 
-    return stack, divisor
+    return flux_stack
 tic = time.perf_counter()
 
 #Set path to project dir
@@ -190,8 +195,13 @@ tno_index = int(sys.argv[1])
 #stacked maps can be combined with whatever waiting we desire
 
 #Load orbits
-orbits = pk.load(open('orbits.p', 'rb'))
-hdu = fits.open('/project/r/rbond/jorlo/tno_obs.fits')
+hdu = fits.open('/project/r/rbond/jorlo/act_tnos/y6_interp.fits')
+if os.path.exists('y6_orbits.p'):
+     orbits = pk.load(open('y6_orbits.p', 'rb'))
+else:
+    orbits = OrbitInterpolator(hdu[1].data)
+    pk.dump(orbits, open('/scratch/r/rbond/jorlo/y6_orbits.p', 'wb')) 
+
 
 #Get a list of names, removing duplicates in a way that has consistant ordering
 names = hdu[1].data['targetname']
@@ -201,9 +211,9 @@ names.sort()
 name = names[tno_index]
 
 #Run the stacking code
-stack, divisor = tnoStacker(orbits,name)
+stack = tnoStacker(orbits,name)
 
-tno_dict = {'Name':name, 'stack':stack, 'weight':divisor}
+tno_dict = {'Name':name, 'stack':stack}
 
 #Make the individual tno dir if it doesn't exist
 dir_name = name.replace(' ', '_')
@@ -224,7 +234,7 @@ plt.savefig(path+dir_name+'/{}.pdf'.format(dir_name))
 plt.close()
 
 toc = time.perf_counter()
-time_hours = round((toc-tic)/3600,2)
-print('Job {} ran in {:0.2f} seconds'.format(tno_index, time_hours))
+time_min = round((toc-tic)/60,2)
+print('Job {} ran in {:0.2f} min'.format(tno_index, time_min))
 
 
